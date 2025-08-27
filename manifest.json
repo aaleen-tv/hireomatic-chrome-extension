@@ -1,0 +1,33 @@
+{
+    "manifest_version": 3,
+    "name": "Hireomatic LinkedIn Connector",
+    "version": "1.0",
+    "description": "Add LinkedIn profiles to Hireomatic",
+    "permissions": ["activeTab", "scripting", "storage", "downloads", "tabs"],
+    "host_permissions": [
+      "https://www.linkedin.com/*",
+      "https://*.linkedin.com/*",
+      "https://your-hireomatic-api.com/*"
+    ],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": {
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+      }
+    },
+    "icons": {
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "content_scripts": [
+      {
+        "matches": ["https://www.linkedin.com/in/*"],
+        "js": ["content.js"]
+      }
+    ]
+  }
+  

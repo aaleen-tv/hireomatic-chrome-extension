@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hireomatic</title>
+  <style>
+    body { font-family: Arial; padding: 10px; }
+    button { 
+      padding: 8px 12px; 
+      margin: 5px; 
+      border-radius: 6px; 
+      border: none; 
+      background: #4F46E5; 
+      color: white; 
+      cursor: pointer; 
+    }
+    button:disabled { 
+      background: #9CA3AF; 
+      cursor: not-allowed; 
+    }
+    .test-btn { 
+      background: #059669; 
+      font-size: 12px; 
+      padding: 6px 10px; 
+    }
+    .debug-btn {
+      background: #DC2626;
+      font-size: 12px;
+      padding: 6px 10px;
+    }
+    #status { 
+      margin-top: 10px; 
+      padding: 8px; 
+      border-radius: 4px; 
+      min-height: 20px; 
+    }
+    .debug-info {
+      margin-top: 10px;
+      padding: 8px;
+      background: #F3F4F6;
+      border-radius: 4px;
+      font-size: 12px;
+      display: none;
+    }
+    .debug-info.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h3>Hireomatic</h3>
+  <button id="addProfile">Add Profile to Hireomatic</button>
+  <button id="testConnection" class="test-btn">Test Connection</button>
+  <button id="toggleDebug" class="debug-btn">Show Debug Info</button>
+  <div id="status"></div>
+  <div id="debugInfo" class="debug-info">
+    <strong>Debug Information:</strong><br>
+    <div id="debugContent"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
