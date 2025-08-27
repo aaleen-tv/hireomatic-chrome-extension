@@ -190,15 +190,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Add API upload information if available
                 if (response.apiInfo) {
-                  statusHTML += `
-                    <br><strong>📤 Manual API Upload Required:</strong><br>
-                    <small style="color: #DC2626;">
-                      Direct upload failed. Use this command:<br>
-                      <code style="background: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-size: 10px;">
-                        ${response.apiInfo.curlCommand}
-                      </code>
-                    </small>
-                  `;
+                  if (response.apiInfo.manualUpload) {
+                    statusHTML += `
+                      <br><strong>📤 Manual PDF Upload Required:</strong><br>
+                      <small style="color: #7C3AED;">
+                        Use the "Select PDF for Upload" button above, or this command:<br>
+                        <code style="background: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-size: 10px;">
+                          ${response.apiInfo.curlCommand}
+                        </code>
+                      </small>
+                    `;
+                  } else {
+                    statusHTML += `
+                      <br><strong>📤 API Upload Ready:</strong><br>
+                      <small style="color: #059669;">
+                        Endpoint: ${response.apiInfo.endpoint}<br>
+                        Client ID: ${response.apiInfo.clientId}<br>
+                        PDF: ${response.apiInfo.filename}<br>
+                        Use the curl command in your terminal to upload
+                      </small>
+                    `;
+                  }
                 }
                 
                 // Add API upload success information if available
@@ -298,4 +310,6 @@ function saveConfiguration() {
     }, 3000);
   });
 }
+
+
   

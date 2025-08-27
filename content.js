@@ -1,7 +1,43 @@
 (() => {
+  // Prevent multiple executions of the content script
+  if (window.hireomaticScriptLoaded) {
+    console.log("Hireomatic content script already loaded, skipping...");
+    return;
+  }
+  window.hireomaticScriptLoaded = true;
+  
   console.log("Hireomatic content script loading...");
   
-  // Function to trigger LinkedIn's built-in PDF save
+  // Function to capture LinkedIn profile as PDF data directly
+  async function captureLinkedInProfileAsPDF() {
+    try {
+      console.log("🚀 Capturing LinkedIn profile as PDF data directly...");
+      
+      // Since we can't easily intercept LinkedIn's PDF generation,
+      // we'll use a different approach: trigger the download and then
+      // immediately capture the file data for upload
+      
+      console.log("📄 Triggering LinkedIn's Save to PDF...");
+      const success = await triggerLinkedInPDFSave();
+      
+      if (success) {
+        console.log("✅ LinkedIn PDF generation triggered successfully");
+        // The PDF will be downloaded, and the background script will handle the upload
+        return true;
+      } else {
+        console.log("❌ LinkedIn PDF generation failed");
+        return false;
+      }
+      
+    } catch (error) {
+      console.error("Error capturing LinkedIn profile as PDF:", error);
+      return false;
+    }
+  }
+  
+
+  
+  // Function to trigger LinkedIn's built-in PDF save (fallback method)
   async function triggerLinkedInPDFSave() {
     try {
       console.log("Attempting to trigger LinkedIn's built-in PDF save...");
@@ -188,6 +224,16 @@
     }
   }
 
+  // Flag to prevent multiple PDF downloads
+  let pdfSaveInProgress = false;
+  
+  // Flag to prevent multiple message listeners
+  if (window.hireomaticMessageListenerSet) {
+    console.log("Message listener already set, skipping...");
+    return;
+  }
+  window.hireomaticMessageListenerSet = true;
+  
   // Set up message listener immediately
   chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     console.log("Content script received message:", msg);
@@ -199,16 +245,28 @@
     }
     
     if (msg.action === "triggerPDFSave") {
+      if (pdfSaveInProgress) {
+        console.log("PDF save already in progress, ignoring request");
+        sendResponse({ success: false, message: "PDF save already in progress" });
+        return true;
+      }
+      
       try {
+        pdfSaveInProgress = true;
         console.log("Received triggerPDFSave request...");
-        const success = await triggerLinkedInPDFSave();
-        sendResponse({ success, message: success ? "PDF save triggered" : "PDF save failed" });
+        const success = await captureLinkedInProfileAsPDF();
+        console.log("PDF capture result:", success);
+        sendResponse({ success, message: success ? "PDF capture triggered" : "PDF capture failed" });
       } catch (error) {
         console.error("Error in triggerPDFSave:", error);
         sendResponse({ success: false, error: error.message });
+      } finally {
+        pdfSaveInProgress = false;
       }
       return true;
     }
+    
+
     
     if (msg.action === "scrapeProfile") {
       try {
@@ -242,12 +300,7 @@
     return true;
   });
   
-  // Also try to scrape immediately when the script loads to test functionality
-  setTimeout(() => {
-    console.log("Testing profile scraping on load...");
-    const testProfile = getProfileInfo();
-    console.log("Test scrape result:", testProfile);
-  }, 1000);
-  
   console.log("Hireomatic content script loaded successfully for LinkedIn profile:", window.location.href);
 })();
+
+

@@ -7,7 +7,7 @@
     "host_permissions": [
       "https://www.linkedin.com/*",
       "https://*.linkedin.com/*",
-      "https://your-hireomatic-api.com/*"
+      "https://dev-job-service.santosh-517.workers.dev/*"
     ],
     "background": {
       "service_worker": "background.js"
