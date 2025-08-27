@@ -8,6 +8,11 @@
   
   console.log("Hireomatic content script loading...");
   
+  // Create and inject the overlay only on LinkedIn profile pages
+  if (window.location.href.includes('linkedin.com/in/')) {
+    createHireomaticOverlay();
+  }
+  
   // Function to capture LinkedIn profile as PDF data directly
   async function captureLinkedInProfileAsPDF() {
     try {
@@ -301,6 +306,245 @@
   });
   
   console.log("Hireomatic content script loaded successfully for LinkedIn profile:", window.location.href);
+  
+  // Function to create and inject the Hireomatic overlay
+  function createHireomaticOverlay() {
+    try {
+      console.log("🎨 Creating Hireomatic overlay...");
+      
+      // Check if overlay already exists
+      if (document.getElementById('hireomatic-overlay')) {
+        console.log("Overlay already exists, skipping...");
+        return;
+      }
+      
+      // Create overlay container
+      const overlay = document.createElement('div');
+      overlay.id = 'hireomatic-overlay';
+      overlay.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        background: white;
+        border: 2px solid #0073b1;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        padding: 16px;
+        min-width: 200px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        transition: all 0.3s ease;
+        opacity: 0;
+        transform: translateY(-20px);
+        animation: slideIn 0.5s ease forwards;
+      `;
+      
+      // Add CSS animation
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes slideIn {
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `;
+      document.head.appendChild(style);
+      
+      // Create header
+      const header = document.createElement('div');
+      header.style.cssText = `
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e0e0e0;
+      `;
+      
+      const logo = document.createElement('div');
+      logo.innerHTML = '🚀';
+      logo.style.cssText = `
+        font-size: 20px;
+        margin-right: 8px;
+      `;
+      
+      const title = document.createElement('div');
+      title.textContent = 'Hireomatic';
+      title.style.cssText = `
+        font-weight: 600;
+        color: #0073b1;
+        font-size: 16px;
+      `;
+      
+      header.appendChild(logo);
+      header.appendChild(title);
+      
+      // Create button
+      const button = document.createElement('button');
+      button.textContent = 'Add to Hireomatic';
+      button.style.cssText = `
+        width: 100%;
+        padding: 12px 16px;
+        background: #0073b1;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      `;
+      
+      // Add hover effects
+      button.addEventListener('mouseenter', () => {
+        button.style.background = '#005a8b';
+        button.style.transform = 'translateY(-1px)';
+      });
+      
+      button.addEventListener('mouseleave', () => {
+        button.style.background = '#0073b1';
+        button.style.transform = 'translateY(0)';
+      });
+      
+      // Add click handler
+      button.addEventListener('click', async () => {
+        try {
+          button.disabled = true;
+          button.textContent = 'Processing...';
+          button.style.background = '#666';
+          
+          console.log("🚀 Add to Hireomatic button clicked!");
+          
+          // Send message to background script
+          const response = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({
+              action: 'addProfile',
+              tabId: null // Background script will get current tab
+            }, (response) => {
+              if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+              } else {
+                resolve(response);
+              }
+            });
+          });
+          
+          if (response && response.uploadSuccess) {
+            button.textContent = '✅ Added!';
+            button.style.background = '#28a745';
+            setTimeout(() => {
+              button.textContent = 'Add to Hireomatic';
+              button.style.background = '#0073b1';
+              button.disabled = false;
+            }, 3000);
+          } else {
+            button.textContent = '⚠️ Check Popup';
+            button.style.background = '#ffc107';
+            setTimeout(() => {
+              button.textContent = 'Add to Hireomatic';
+              button.style.background = '#0073b1';
+              button.disabled = false;
+            }, 3000);
+          }
+          
+        } catch (error) {
+          console.error("Error processing Add to Hireomatic:", error);
+          button.textContent = '❌ Error';
+          button.style.background = '#dc3545';
+          setTimeout(() => {
+            button.textContent = 'Add to Hireomatic';
+            button.style.background = '#0073b1';
+            button.disabled = false;
+          }, 3000);
+        }
+      });
+      
+      // Add close button
+      const closeButton = document.createElement('button');
+      closeButton.innerHTML = '×';
+      closeButton.style.cssText = `
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: none;
+        border: none;
+        font-size: 18px;
+        color: #666;
+        cursor: pointer;
+        padding: 4px;
+        line-height: 1;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+      `;
+      
+      closeButton.addEventListener('mouseenter', () => {
+        closeButton.style.background = '#f0f0f0';
+        closeButton.style.color = '#333';
+      });
+      
+      closeButton.addEventListener('mouseleave', () => {
+        closeButton.style.background = 'none';
+        closeButton.style.color = '#666';
+      });
+      
+      closeButton.addEventListener('click', () => {
+        overlay.remove();
+      });
+      
+      // Assemble overlay
+      overlay.appendChild(closeButton);
+      overlay.appendChild(header);
+      overlay.appendChild(button);
+      
+      // Add to page
+      document.body.appendChild(overlay);
+      
+      console.log("✅ Hireomatic overlay created successfully");
+      
+      // Auto-hide after 30 seconds of inactivity
+      let hideTimeout;
+      const resetHideTimeout = () => {
+        clearTimeout(hideTimeout);
+        hideTimeout = setTimeout(() => {
+          if (overlay && document.body.contains(overlay)) {
+            overlay.style.opacity = '0.3';
+            overlay.style.transform = 'scale(0.95)';
+          }
+        }, 30000);
+      };
+      
+      // Reset timeout on user interaction
+      overlay.addEventListener('mouseenter', resetHideTimeout);
+      overlay.addEventListener('click', resetHideTimeout);
+      
+      // Initial timeout
+      resetHideTimeout();
+      
+      // Reposition overlay on scroll/resize
+      const repositionOverlay = () => {
+        if (overlay && document.body.contains(overlay)) {
+          // Keep overlay in viewport
+          const rect = overlay.getBoundingClientRect();
+          if (rect.right > window.innerWidth - 20) {
+            overlay.style.right = '20px';
+          }
+          if (rect.top < 20) {
+            overlay.style.top = '20px';
+          }
+        }
+      };
+      
+      window.addEventListener('scroll', repositionOverlay);
+      window.addEventListener('resize', repositionOverlay);
+      
+    } catch (error) {
+      console.error("Error creating Hireomatic overlay:", error);
+    }
+  }
 })();
 
 
