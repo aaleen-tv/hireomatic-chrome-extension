@@ -2,9 +2,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const addProfileBtn = document.getElementById("addProfile");
   const testConnectionBtn = document.getElementById("testConnection");
   const toggleDebugBtn = document.getElementById("toggleDebug");
+  const saveConfigBtn = document.getElementById("saveConfig");
   const statusDiv = document.getElementById("status");
   const debugInfo = document.getElementById("debugInfo");
   const debugContent = document.getElementById("debugContent");
+  const configStatus = document.getElementById("configStatus");
   
   // Toggle debug info
   toggleDebugBtn.addEventListener("click", () => {
@@ -151,16 +153,83 @@ document.addEventListener('DOMContentLoaded', () => {
               // Show profile details in status
               const profile = response.profile;
               if (profile.name) {
-                statusDiv.innerHTML = `
+                let statusHTML = `
                   <div style="text-align: left;">
-                    <strong>✅ Profile Scraped Successfully!</strong><br>
+                    <strong>✅ Profile Data Extracted Successfully!</strong><br>
                     <strong>Name:</strong> ${profile.name}<br>
-                    <strong>Headline:</strong> ${profile.headline || 'N/A'}<br>
-                    <strong>Location:</strong> ${profile.location || 'N/A'}<br>
-                    <strong>Company:</strong> ${profile.company || 'N/A'}<br>
-                    <strong>URL:</strong> <a href="${profile.url}" target="_blank">View Profile</a>
+                    <strong>URL:</strong> <a href="${profile.url}" target="_blank">View Profile</a><br>
+                `;
+                
+                if (profile.headline) {
+                  statusHTML += `<strong>Headline:</strong> ${profile.headline}<br>`;
+                }
+                
+                if (profile.location) {
+                  statusHTML += `<strong>Location:</strong> ${profile.location}<br>`;
+                }
+                
+                if (profile.company) {
+                  statusHTML += `<strong>Company:</strong> ${profile.company}<br>`;
+                }
+                
+                if (profile.experience && profile.experience.length > 0) {
+                  statusHTML += `<strong>Experience:</strong> ${profile.experience.length} positions<br>`;
+                }
+                
+                if (profile.education && profile.education.length > 0) {
+                  statusHTML += `<strong>Education:</strong> ${profile.education.length} institutions<br>`;
+                }
+                
+                if (profile.skills && profile.skills.length > 0) {
+                  statusHTML += `<strong>Skills:</strong> ${profile.skills.length} skills<br>`;
+                }
+                
+                if (profile.pageContent) {
+                  statusHTML += `<strong>Fallback Content:</strong> ${profile.pageContent.length.toLocaleString()} characters<br>`;
+                }
+                
+                // Add API upload information if available
+                if (response.apiInfo) {
+                  statusHTML += `
+                    <br><strong>📤 Manual API Upload Required:</strong><br>
+                    <small style="color: #DC2626;">
+                      Direct upload failed. Use this command:<br>
+                      <code style="background: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-size: 10px;">
+                        ${response.apiInfo.curlCommand}
+                      </code>
+                    </small>
+                  `;
+                }
+                
+                // Add API upload success information if available
+                if (response.apiResult) {
+                  statusHTML += `
+                    <br><strong>🎉 API Upload Successful!</strong><br>
+                    <small style="color: #059669;">
+                      PDF uploaded to your API endpoint<br>
+                      Response: ${JSON.stringify(response.apiResult)}
+                    </small>
+                  `;
+                }
+                
+                // Add API upload error information if available
+                if (response.apiError) {
+                  statusHTML += `
+                    <br><strong>❌ API Upload Failed:</strong><br>
+                    <small style="color: #DC2626;">
+                      Status: ${response.apiError.status}<br>
+                      Error: ${response.apiError.message}
+                    </small>
+                  `;
+                }
+                
+                statusHTML += `
+                    <br><strong>Data Source:</strong> Simple Selectors + AI Processing ✅<br>
+                    <small style="color: #666;">Clean data extraction with fallback content for AI</small>
                   </div>
                 `;
+                
+                statusDiv.innerHTML = statusHTML;
               }
             }
           } else {
@@ -185,6 +254,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
+  // Load saved configuration
+  loadConfiguration();
+  
+  // Save configuration button
+  saveConfigBtn.addEventListener("click", saveConfiguration);
+  
   console.log("Hireomatic popup loaded");
 });
+
+// Configuration functions
+function loadConfiguration() {
+  chrome.storage.sync.get(['jwtToken', 'clientId'], (result) => {
+    if (result.jwtToken) {
+      document.getElementById('jwtToken').value = result.jwtToken;
+    }
+    if (result.clientId) {
+      document.getElementById('clientId').value = result.clientId;
+    }
+  });
+}
+
+function saveConfiguration() {
+  const jwtToken = document.getElementById('jwtToken').value;
+  const clientId = document.getElementById('clientId').value;
+  
+  if (!jwtToken || !clientId) {
+    configStatus.textContent = "❌ Please fill in both JWT Token and Client ID";
+    configStatus.style.color = "#DC2626";
+    return;
+  }
+  
+  chrome.storage.sync.set({
+    jwtToken: jwtToken,
+    clientId: clientId
+  }, () => {
+    configStatus.textContent = "✅ Configuration saved successfully!";
+    configStatus.style.color = "#059669";
+    
+    // Clear status after 3 seconds
+    setTimeout(() => {
+      configStatus.textContent = "";
+    }, 3000);
+  });
+}
   
