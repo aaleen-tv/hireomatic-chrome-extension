@@ -1,20 +1,20 @@
 (() => {
-  console.log("🚀 HIREOMATIC: Content script starting...");
-  console.log("🚀 HIREOMATIC: Current URL:", window.location.href);
-  
-  // Test alert to verify script is running
-  if (window.location.href.includes('linkedin.com')) {
-    console.log("🎯 HIREOMATIC: LinkedIn detected - script is working!");
-    // Uncomment the line below if you want to see a visible alert
-    // alert("Hireomatic extension is loaded and working!");
-  }
+
   
   // Prevent multiple executions of the content script
   if (window.hireomaticScriptLoaded) {
     console.log("Hireomatic content script already loaded, skipping...");
     return;
   }
+  
+  // Set the flag immediately to prevent race conditions
   window.hireomaticScriptLoaded = true;
+  
+  // Also check if we're in an iframe or have other issues
+  if (window !== window.top) {
+    console.log("Hireomatic: Running in iframe, skipping...");
+    return;
+  }
   
   console.log("Hireomatic content script loading...");
   console.log("📍 Current URL:", window.location.href);
@@ -153,7 +153,7 @@
     return true;
   }
   
-  // Create and inject the overlay based on conditions
+  // Create and inject the overlay based on conditions - SIMPLIFIED FOR DEBUGGING
   console.log("🔍 Initial overlay check - shouldShowOverlay():", shouldShowOverlay());
   console.log("🔍 isPageReload:", isPageReload);
   console.log("🔍 isExternalNavigation:", isExternalNavigation);
@@ -177,6 +177,8 @@
       // The navigation detection methods below will handle profile navigation
     }
   }
+  
+
   
   // Function to wait for profile content to load before showing overlay
   function waitForProfileContent() {
@@ -282,67 +284,124 @@
   // Set up multiple navigation detection methods
   
   // Method 1: Polling for URL changes (most reliable for LinkedIn)
-  setInterval(() => {
-    if (window.location.href !== currentUrl) {
-      const previousUrl = currentUrl;
-      currentUrl = window.location.href;
-      console.log("🔄 URL changed (polling) from:", previousUrl, "to:", currentUrl);
-      
-      // Check if we navigated to a profile page
-      if (currentUrl.includes('linkedin.com/in/') && !previousUrl.includes('linkedin.com/in/')) {
-        console.log("🎯 Navigated to profile page from:", previousUrl);
-        handleProfileNavigation(currentUrl, previousUrl);
-      } else if (currentUrl.includes('linkedin.com/in/') && previousUrl.includes('linkedin.com/in/')) {
-        // Navigating between different profiles
-        console.log("🔄 Navigated between profiles");
-        handleProfileNavigation(currentUrl, previousUrl);
-      } else if (previousUrl.includes('linkedin.com/in/') && !currentUrl.includes('linkedin.com/in/')) {
-        // Navigated away from profile page to non-profile page
-        console.log("🚪 Navigated away from profile page to:", currentUrl);
-        handleProfileExit(currentUrl, previousUrl);
-      }
-    }
-  }, 500); // Check every 500ms
+  let pollingActive = false;
+  let lastPollingCheck = 0;
+  const pollingThrottle = 1000; // Check every 1 second instead of 500ms
   
-  // Method 2: MutationObserver for DOM changes
-  const observer = new MutationObserver((mutations) => {
-    // Look for navigation indicators in DOM changes
-    mutations.forEach((mutation) => {
-      if (mutation.type === 'childList') {
-        // Check if this looks like a navigation change
-        const addedNodes = Array.from(mutation.addedNodes);
-        const hasNavigationIndicator = addedNodes.some(node => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            // Look for elements that typically appear during navigation
-            return node.querySelector && (
-              node.querySelector('h1') || 
-              node.querySelector('[data-section="experience"]') ||
-              node.querySelector('.profile-background')
-            );
-          }
-          return false;
-        });
+  setInterval(() => {
+    try {
+      // Throttle polling to prevent excessive calls
+      const now = Date.now();
+      if (now - lastPollingCheck < pollingThrottle) {
+        return;
+      }
+      lastPollingCheck = now;
+      
+      // Only process if we're not already handling navigation
+      if (pollingActive) {
+        return;
+      }
+      
+      pollingActive = true;
+      
+      if (window.location.href !== currentUrl) {
+        const previousUrl = currentUrl;
+        currentUrl = window.location.href;
+        console.log("🔄 URL changed (polling) from:", previousUrl, "to:", currentUrl);
         
-        if (hasNavigationIndicator) {
-          console.log("🔍 DOM change suggests navigation, checking URL...");
-          if (window.location.href !== currentUrl) {
-            const previousUrl = currentUrl;
-            currentUrl = window.location.href;
-            console.log("🔄 URL changed (DOM) from:", previousUrl, "to:", currentUrl);
-            
-            if (currentUrl.includes('linkedin.com/in/')) {
-              handleProfileNavigation(currentUrl, previousUrl);
-            } else if (previousUrl.includes('linkedin.com/in/')) {
-              handleProfileExit(currentUrl, previousUrl);
+        // Check if we navigated to a profile page
+        if (currentUrl.includes('linkedin.com/in/') && !previousUrl.includes('linkedin.com/in/')) {
+          console.log("🎯 Navigated to profile page from:", previousUrl);
+          handleProfileNavigation(currentUrl, previousUrl);
+        } else if (currentUrl.includes('linkedin.com/in/') && previousUrl.includes('linkedin.com/in/')) {
+          // Navigating between different profiles
+          console.log("🔄 Navigated between profiles");
+          handleProfileNavigation(currentUrl, previousUrl);
+        } else if (previousUrl.includes('linkedin.com/in/') && !currentUrl.includes('linkedin.com/in/')) {
+          // Navigated away from profile page to non-profile page
+          console.log("🚪 Navigated away from profile page to:", currentUrl);
+          handleProfileExit(currentUrl, previousUrl);
+        }
+      }
+    } catch (error) {
+      console.log("⚠️ Polling error (non-critical):", error.message);
+    } finally {
+      pollingActive = false;
+    }
+  }, 1000); // Check every 1 second
+  
+  // Method 2: MutationObserver for DOM changes (optimized)
+  let observerActive = false;
+  let lastObserverCheck = 0;
+  const observerThrottle = 2000; // Only check every 2 seconds
+  
+  const observer = new MutationObserver((mutations) => {
+    // Throttle observer to prevent excessive calls
+    const now = Date.now();
+    if (now - lastObserverCheck < observerThrottle) {
+      return;
+    }
+    lastObserverCheck = now;
+    
+    // Only process if we're not already handling navigation
+    if (observerActive) {
+      return;
+    }
+    
+    observerActive = true;
+    
+    try {
+      // Look for navigation indicators in DOM changes
+      let hasNavigationIndicator = false;
+      
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          // Check if this looks like a navigation change
+          const addedNodes = Array.from(mutation.addedNodes);
+          hasNavigationIndicator = addedNodes.some(node => {
+            if (node.nodeType === Node.ELEMENT_NODE && node.querySelector) {
+              // Look for elements that typically appear during navigation
+              return (
+                node.querySelector('h1') || 
+                node.querySelector('[data-section="experience"]') ||
+                node.querySelector('.profile-background')
+              );
             }
+            return false;
+          });
+          
+          if (hasNavigationIndicator) break;
+        }
+      }
+      
+      if (hasNavigationIndicator) {
+        console.log("🔍 DOM change suggests navigation, checking URL...");
+        if (window.location.href !== currentUrl) {
+          const previousUrl = currentUrl;
+          currentUrl = window.location.href;
+          console.log("🔄 URL changed (DOM) from:", previousUrl, "to:", currentUrl);
+          
+          if (currentUrl.includes('linkedin.com/in/')) {
+            handleProfileNavigation(currentUrl, previousUrl);
+          } else if (previousUrl.includes('linkedin.com/in/')) {
+            handleProfileExit(currentUrl, previousUrl);
           }
         }
       }
-    });
+    } catch (error) {
+      console.log("⚠️ Observer error (non-critical):", error.message);
+    } finally {
+      observerActive = false;
+    }
   });
   
-  // Start observing for DOM changes
-  observer.observe(document.body, { childList: true, subtree: true });
+  // Start observing for DOM changes with more targeted options
+  observer.observe(document.body, { 
+    childList: true, 
+    subtree: false, // Don't watch entire subtree
+    attributes: false, // Don't watch attribute changes
+    characterData: false // Don't watch text changes
+  });
   
   // Method 3: History API events
   window.addEventListener('popstate', () => {
@@ -405,11 +464,71 @@
   // Method 6: Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     console.log("🚪 Page unloading, cleaning up overlay...");
+    
+    // Disconnect observers to prevent memory leaks
+    if (observer) {
+      observer.disconnect();
+      console.log("🔌 Disconnected MutationObserver");
+    }
+    
     const existingOverlay = document.getElementById('hireomatic-overlay');
     if (existingOverlay) {
       existingOverlay.remove();
       console.log("🗑️ Removed overlay on page unload");
     }
+  });
+  
+  // Method 7: Cleanup when navigating away from LinkedIn
+  let isOnLinkedIn = window.location.href.includes('linkedin.com');
+  
+  // Monitor if we leave LinkedIn entirely
+  setInterval(() => {
+    const currentlyOnLinkedIn = window.location.href.includes('linkedin.com');
+    if (isOnLinkedIn && !currentlyOnLinkedIn) {
+      console.log("🚪 Left LinkedIn, cleaning up...");
+      isOnLinkedIn = false;
+      
+      // Disconnect observer when not on LinkedIn
+      if (observer) {
+        observer.disconnect();
+        console.log("🔌 Disconnected MutationObserver (left LinkedIn)");
+      }
+    } else if (!isOnLinkedIn && currentlyOnLinkedIn) {
+      console.log("🌐 Returned to LinkedIn, reconnecting observer...");
+      isOnLinkedIn = true;
+      
+      // Reconnect observer when returning to LinkedIn
+      if (observer) {
+        observer.observe(document.body, { 
+          childList: true, 
+          subtree: false,
+          attributes: false,
+          characterData: false
+        });
+        console.log("🔌 Reconnected MutationObserver");
+      }
+    }
+  }, 5000); // Check every 5 seconds
+  
+  // Method 8: Cleanup on script unload
+  window.addEventListener('unload', () => {
+    console.log("🚪 Script unloading, cleaning up...");
+    
+    // Disconnect observers
+    if (observer) {
+      observer.disconnect();
+      console.log("🔌 Disconnected MutationObserver on unload");
+    }
+    
+    // Remove message listener
+    if (chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.removeListener();
+      console.log("🔌 Removed message listener on unload");
+    }
+    
+    // Clear flags
+    window.hireomaticScriptLoaded = false;
+    console.log("🔌 Cleared script flags on unload");
   });
   
   // Method 5: Listen for LinkedIn-specific navigation events
@@ -497,7 +616,7 @@
       console.log("Attempting to trigger LinkedIn's built-in PDF save...");
       
       // Look for the "More" button
-      const moreButton = document.querySelector('button[aria-label*="More"], button[aria-label*="more"], button[class*="more"]');
+      let moreButton = document.querySelector('button[aria-label*="More"], button[aria-label*="more"], button[class*="more"]');
       if (!moreButton) {
         console.log("More button not found, trying alternative selectors...");
         // Try alternative selectors for the More button
@@ -520,7 +639,7 @@
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Look for "Save to PDF" option in the dropdown
-        const saveToPDFOption = document.querySelector('div[aria-label*="Save to PDF"], div[class*="save"], div[class*="pdf"], span[class*="save"], span[class*="pdf"]');
+        let saveToPDFOption = document.querySelector('div[aria-label*="Save to PDF"], div[class*="save"], div[class*="pdf"], span[class*="save"], span[class*="pdf"]');
         
         if (!saveToPDFOption) {
           // Try to find by text content
@@ -538,6 +657,7 @@
         if (saveToPDFOption) {
           console.log("Found Save to PDF option, clicking it...");
           saveToPDFOption.click();
+          
           console.log("✅ LinkedIn PDF save triggered successfully!");
           return true;
         } else {
@@ -688,70 +808,78 @@
   }
   window.hireomaticMessageListenerSet = true;
   
-  // Set up message listener immediately
+  // Set up message listener immediately with better error handling
   chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
-    console.log("Content script received message:", msg);
-    
-    if (msg.action === "ping") {
-      console.log("Responding to ping with pong");
-      sendResponse({ status: "pong" });
-      return true;
-    }
-    
-    if (msg.action === "triggerPDFSave") {
-      if (pdfSaveInProgress) {
-        console.log("PDF save already in progress, ignoring request");
-        sendResponse({ success: false, message: "PDF save already in progress" });
+    try {
+      console.log("Content script received message:", msg);
+      
+      if (msg.action === "ping") {
+        console.log("Responding to ping with pong");
+        sendResponse({ status: "pong" });
         return true;
       }
       
-      try {
-        pdfSaveInProgress = true;
-        console.log("Received triggerPDFSave request...");
-        const success = await captureLinkedInProfileAsPDF();
-        console.log("PDF capture result:", success);
-        sendResponse({ success, message: success ? "PDF capture triggered" : "PDF capture failed" });
-      } catch (error) {
-        console.error("Error in triggerPDFSave:", error);
-        sendResponse({ success: false, error: error.message });
-      } finally {
-        pdfSaveInProgress = false;
+      if (msg.action === "triggerPDFSave") {
+        if (pdfSaveInProgress) {
+          console.log("PDF save already in progress, ignoring request");
+          sendResponse({ success: false, message: "PDF save already in progress" });
+          return true;
+        }
+        
+        try {
+          pdfSaveInProgress = true;
+          console.log("Received triggerPDFSave request...");
+          const success = await captureLinkedInProfileAsPDF();
+          console.log("PDF capture result:", success);
+          sendResponse({ success, message: success ? "PDF capture triggered" : "PDF capture failed" });
+        } catch (error) {
+          console.error("Error in triggerPDFSave:", error);
+          sendResponse({ success: false, error: error.message });
+        } finally {
+          pdfSaveInProgress = false;
+        }
+        return true;
       }
-      return true;
-    }
-    
-
-    
-    if (msg.action === "scrapeProfile") {
-      try {
-        console.log("Processing scrapeProfile request...");
-        
-        // Respond quickly to prevent timeout
-        const profile = getProfileInfo();
-        
-        if (profile && profile.name) {
-          console.log("Sending profile data back:", profile);
-          sendResponse(profile);
-        } else {
-          console.error("Failed to scrape profile - no valid data found");
+      
+      if (msg.action === "scrapeProfile") {
+        try {
+          console.log("Processing scrapeProfile request...");
+          
+          // Respond quickly to prevent timeout
+          const profile = getProfileInfo();
+          
+          if (profile && profile.name) {
+            console.log("Sending profile data back:", profile);
+            sendResponse(profile);
+          } else {
+            console.error("Failed to scrape profile - no valid data found");
+            sendResponse({ 
+              error: "No profile data found",
+              url: window.location.href,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch (error) {
+          console.error("Error in message listener:", error);
           sendResponse({ 
-            error: "No profile data found",
+            error: error.message,
             url: window.location.href,
             timestamp: new Date().toISOString()
           });
         }
-      } catch (error) {
-        console.error("Error in message listener:", error);
-        sendResponse({ 
-          error: error.message,
-          url: window.location.href,
-          timestamp: new Date().toISOString()
-        });
+        return true;
       }
+      
+      // Unknown action
+      console.log("Unknown action received:", msg.action);
+      sendResponse({ error: "Unknown action: " + msg.action });
+      return true;
+      
+    } catch (error) {
+      console.error("Critical error in message listener:", error);
+      sendResponse({ error: "Critical error: " + error.message });
+      return true;
     }
-    
-    // Return true to indicate we will send a response asynchronously
-    return true;
   });
   
   console.log("Hireomatic content script loaded successfully for LinkedIn profile:", window.location.href);
@@ -850,7 +978,7 @@
       
       // Add hover effects
       button.addEventListener('mouseenter', () => {
-        button.style.background = '#005a8b';
+        button.style.background = '#FF7230';
         button.style.transform = 'translateY(-1px)';
       });
       
@@ -868,7 +996,7 @@
           
           console.log("🚀 Add to Hireomatic button clicked!");
           
-          // Send message to background script
+          // Send message to background script - let it get the current tab
           const response = await new Promise((resolve, reject) => {
             chrome.runtime.sendMessage({
               action: 'addProfile',
@@ -882,9 +1010,24 @@
             });
           });
           
-          if (response && response.uploadSuccess) {
-            button.textContent = '✅ Added!';
-            button.style.background = '#28a745';
+          console.log("Response from background script:", response);
+          
+          if (response && response.status) {
+            // Show the status message from the background script
+            if (response.status.includes('✅') || response.status.includes('successfully')) {
+              button.textContent = '✅ Added!';
+              button.style.background = '#28a745';
+            } else if (response.status.includes('❌') || response.status.includes('failed')) {
+              button.textContent = '❌ Failed';
+              button.style.background = '#dc3545';
+            } else {
+              button.textContent = '⚠️ Check Status';
+              button.style.background = '#ffc107';
+            }
+            
+            // Show status in console for debugging
+            console.log("Profile processing result:", response.status);
+            
             setTimeout(() => {
               button.textContent = 'Add to Hireomatic';
               button.style.background = '#FF7233';
@@ -904,6 +1047,12 @@
           console.error("Error processing Add to Hireomatic:", error);
           button.textContent = '❌ Error';
           button.style.background = '#dc3545';
+          
+          // Show error details in console
+          if (error.message) {
+            console.error("Error details:", error.message);
+          }
+          
           setTimeout(() => {
             button.textContent = 'Add to Hireomatic';
             button.style.background = '#FF7233';
