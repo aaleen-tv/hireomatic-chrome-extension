@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const addProfileBtn = document.getElementById("addProfile");
   const testConnectionBtn = document.getElementById("testConnection");
+  const testDecryptionBtn = document.getElementById("testDecryption");
   const toggleDebugBtn = document.getElementById("toggleDebug");
   const saveConfigBtn = document.getElementById("saveConfig");
   const statusDiv = document.getElementById("status");
@@ -94,6 +95,63 @@ document.addEventListener('DOMContentLoaded', () => {
       statusDiv.innerText = "❌ Test failed: " + error.message;
       testConnectionBtn.disabled = false;
       testConnectionBtn.textContent = "Test Connection";
+    }
+  });
+  
+  // Test decryption button
+  testDecryptionBtn.addEventListener("click", async () => {
+    try {
+      testDecryptionBtn.disabled = true;
+      testDecryptionBtn.textContent = "Testing...";
+      statusDiv.innerText = "🔄 Testing token decryption...";
+      
+      // Get stored token
+      chrome.storage.sync.get(['hireomatic_token', 'token_timestamp'], async (result) => {
+        try {
+          if (!result.hireomatic_token) {
+            statusDiv.innerText = "❌ No token found in storage. Please login to Hireomatic first.";
+            return;
+          }
+          
+          console.log("🔍 Testing decryption for stored token:");
+          console.log("📋 Token:", result.hireomatic_token);
+          console.log("📏 Length:", result.hireomatic_token.length);
+          console.log("🔍 Preview:", result.hireomatic_token.substring(0, 50) + "...");
+          console.log("⏰ Stored at:", new Date(result.token_timestamp).toLocaleString());
+          
+          // Test the decryption by sending a message to background script
+          chrome.runtime.sendMessage({ 
+            action: "testDecryption",
+            token: result.hireomatic_token
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error("Decryption test error:", chrome.runtime.lastError);
+              statusDiv.innerText = "❌ Decryption test failed: " + chrome.runtime.lastError.message;
+            } else if (response && response.success) {
+              statusDiv.innerText = "✅ Token decryption successful! Original token extracted.";
+              console.log("🎉 Decryption successful:", response);
+            } else {
+              statusDiv.innerText = "❌ Token decryption failed: " + (response?.error || "Unknown error");
+              console.error("Decryption failed:", response);
+            }
+            
+            testDecryptionBtn.disabled = false;
+            testDecryptionBtn.textContent = "🧪 Test Token Decryption";
+          });
+          
+        } catch (error) {
+          console.error("Error in decryption test:", error);
+          statusDiv.innerText = "❌ Decryption test error: " + error.message;
+          testDecryptionBtn.disabled = false;
+          testDecryptionBtn.textContent = "🧪 Test Token Decryption";
+        }
+      });
+      
+    } catch (error) {
+      console.error("Error testing decryption:", error);
+      statusDiv.innerText = "❌ Test failed: " + error.message;
+      testDecryptionBtn.disabled = false;
+      testDecryptionBtn.textContent = "🧪 Test Token Decryption";
     }
   });
   

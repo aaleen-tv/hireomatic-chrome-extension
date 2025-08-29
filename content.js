@@ -613,22 +613,59 @@
   // Function to trigger LinkedIn's built-in PDF save (fallback method)
   async function triggerLinkedInPDFSave() {
     try {
-      console.log("Attempting to trigger LinkedIn's built-in PDF save...");
+      console.log("🔍 Attempting to trigger LinkedIn's built-in PDF save...");
+      console.log("📍 Current URL:", window.location.href);
       
-      // Look for the "More" button
+      // First, let's check if we're on a profile page
+      if (!window.location.href.includes('/in/')) {
+        console.log("❌ Not on a LinkedIn profile page");
+        return false;
+      }
+      
+      // Look for the "More" button with expanded selectors
+      console.log("🔍 Looking for More button...");
       let moreButton = document.querySelector('button[aria-label*="More"], button[aria-label*="more"], button[class*="more"]');
+      
       if (!moreButton) {
-        console.log("More button not found, trying alternative selectors...");
-        // Try alternative selectors for the More button
-        const alternativeMoreButtons = document.querySelectorAll('button');
-        for (const button of alternativeMoreButtons) {
-          const text = button.innerText?.toLowerCase() || '';
-          if (text.includes('more') || text.includes('⋯') || text.includes('...')) {
-            console.log("Found More button via text content:", button.innerText);
-            moreButton = button;
+        console.log("🔍 More button not found with aria-label, trying alternative selectors...");
+        
+        // Try more specific LinkedIn selectors
+        const moreSelectors = [
+          'button[data-control-name*="more"]',
+          'button[id*="more"]',
+          'button[class*="artdeco-dropdown__trigger"]',
+          'button svg[data-test-icon="overflow-web-ios-small"]',
+          'button[aria-expanded]'
+        ];
+        
+        for (const selector of moreSelectors) {
+          moreButton = document.querySelector(selector);
+          if (moreButton) {
+            console.log(`✅ Found More button with selector: ${selector}`);
             break;
           }
         }
+        
+        // If still not found, search by text content
+        if (!moreButton) {
+          console.log("🔍 Searching buttons by text content...");
+          const allButtons = document.querySelectorAll('button');
+          console.log(`📊 Found ${allButtons.length} buttons on page`);
+          
+          for (const button of allButtons) {
+            const text = button.innerText?.toLowerCase() || '';
+            const ariaLabel = button.getAttribute('aria-label')?.toLowerCase() || '';
+            
+            if (text.includes('more') || text.includes('⋯') || text.includes('...') || 
+                ariaLabel.includes('more') || button.querySelector('svg[data-test-icon*="overflow"]')) {
+              console.log("✅ Found More button via text/aria:", button.innerText || button.getAttribute('aria-label'));
+              moreButton = button;
+              break;
+            }
+          }
+        }
+      } else {
+        console.log("✅ Found More button with initial selector");
       }
       
       if (moreButton) {
@@ -636,22 +673,60 @@
         moreButton.click();
         
         // Wait for dropdown to appear
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log("⏳ Waiting for dropdown to appear...");
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
-        // Look for "Save to PDF" option in the dropdown
+        // Look for "Save to PDF" option in the dropdown with expanded selectors
+        console.log("🔍 Looking for Save to PDF option...");
         let saveToPDFOption = document.querySelector('div[aria-label*="Save to PDF"], div[class*="save"], div[class*="pdf"], span[class*="save"], span[class*="pdf"]');
         
         if (!saveToPDFOption) {
-          // Try to find by text content
-          const allDropdownItems = document.querySelectorAll('div[role="menuitem"], div[class*="menu-item"], div[class*="dropdown-item"]');
-          for (const item of allDropdownItems) {
-            const text = item.innerText?.toLowerCase() || '';
-            if (text.includes('save to pdf') || text.includes('save as pdf') || text.includes('download pdf')) {
-              console.log("Found Save to PDF option via text content:", item.innerText);
-              saveToPDFOption = item;
-              break;
+          console.log("🔍 PDF option not found with initial selectors, trying alternatives...");
+          
+          // Try more specific PDF selectors
+          const pdfSelectors = [
+            'div[data-control-name*="save"]',
+            'div[data-control-name*="pdf"]',
+            'li[role="menuitem"]',
+            'button[data-control-name*="save"]',
+            'a[data-control-name*="save"]',
+            'div[class*="artdeco-dropdown__item"]'
+          ];
+          
+          for (const selector of pdfSelectors) {
+            const elements = document.querySelectorAll(selector);
+            for (const element of elements) {
+              const text = element.innerText?.toLowerCase() || '';
+              if (text.includes('save') && text.includes('pdf')) {
+                console.log(`✅ Found PDF option with selector: ${selector}, text: ${element.innerText}`);
+                saveToPDFOption = element;
+                break;
+              }
+            }
+            if (saveToPDFOption) break;
+          }
+          
+          // If still not found, search all dropdown items
+          if (!saveToPDFOption) {
+            console.log("🔍 Searching all dropdown items for PDF option...");
+            const allDropdownItems = document.querySelectorAll('div[role="menuitem"], li[role="menuitem"], div[class*="menu-item"], div[class*="dropdown-item"], div[class*="artdeco-dropdown"]');
+            console.log(`📊 Found ${allDropdownItems.length} dropdown items`);
+            
+            for (const item of allDropdownItems) {
+              const text = item.innerText?.toLowerCase() || '';
+              console.log(`🔍 Checking item: "${text}"`);
+              
+              if (text.includes('save to pdf') || text.includes('save as pdf') || 
+                  text.includes('download pdf') || text.includes('export pdf') ||
+                  (text.includes('save') && text.includes('pdf'))) {
+                console.log("✅ Found Save to PDF option via text content:", item.innerText);
+                saveToPDFOption = item;
+                break;
+              }
             }
           }
+        } else {
+          console.log("✅ Found PDF option with initial selector");
         }
         
         if (saveToPDFOption) {
@@ -837,6 +912,17 @@
           sendResponse({ success: false, error: error.message });
         } finally {
           pdfSaveInProgress = false;
+        }
+        return true;
+      }
+      
+      if (msg.action === "uploadPDFDirectly") {
+        try {
+          console.log("Processing uploadPDFDirectly request...");
+          uploadPDFDirectly(msg.profile, msg.config, sendResponse);
+        } catch (error) {
+          console.error("Error in uploadPDFDirectly:", error);
+          sendResponse({ success: false, error: error.message });
         }
         return true;
       }
@@ -1141,6 +1227,88 @@
       
     } catch (error) {
       console.error("Error creating Hireomatic overlay:", error);
+    }
+  }
+
+  // Function to handle direct PDF upload after download
+  async function uploadPDFDirectly(profile, config, sendResponse) {
+    try {
+      console.log("📁 Creating file input for PDF selection...");
+      
+      // Create a hidden file input element
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.pdf';
+      fileInput.style.display = 'none';
+      document.body.appendChild(fileInput);
+      
+      // Set up file selection handler
+      fileInput.addEventListener('change', async function(event) {
+        const file = event.target.files[0];
+        if (!file) {
+          console.log("No file selected");
+          sendResponse({ success: false, error: "No file selected" });
+          return;
+        }
+        
+        console.log(`✅ File selected: ${file.name} Size: ${file.size}`);
+        
+        try {
+          // Create FormData for upload
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          console.log("📤 Uploading file to API...");
+          console.log("🌐 Endpoint:", config.endpoint);
+          
+          // Upload the file
+          const response = await fetch(config.endpoint, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${config.token}`
+              // Don't set Content-Type, let browser handle it for FormData
+            },
+            body: formData
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log("✅ PDF uploaded successfully to API:", result);
+            sendResponse({ 
+              success: true, 
+              result: result,
+              filename: file.name,
+              size: file.size
+            });
+          } else {
+            const errorText = await response.text();
+            console.error("❌ API upload failed:", response.status, errorText);
+            sendResponse({ 
+              success: false, 
+              error: `API upload failed: ${response.status} ${response.statusText}`,
+              details: errorText
+            });
+          }
+          
+        } catch (uploadError) {
+          console.error("❌ Upload error:", uploadError);
+          sendResponse({ 
+            success: false, 
+            error: "Upload failed: " + uploadError.message 
+          });
+        } finally {
+          // Clean up
+          document.body.removeChild(fileInput);
+        }
+      });
+      
+      // Auto-trigger file picker
+      console.log("📂 Opening file picker...");
+      fileInput.click();
+      
+    } catch (error) {
+      console.error("❌ Error in uploadPDFDirectly:", error);
+      sendResponse({ success: false, error: error.message });
     }
   }
 

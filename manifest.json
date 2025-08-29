@@ -30,7 +30,7 @@
         "https://www.linkedin.com/*",
         "https://*.linkedin.com/*"
       ],
-      "js": ["linkedin-content.js"]
+      "js": ["content.js"]
     },
     {
       "matches": [
